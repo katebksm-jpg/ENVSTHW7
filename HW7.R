@@ -35,6 +35,9 @@ mod.full <- lm(log.ch4 ~ airTemp+
                  log.age+mean.depth+
                  log.DIP+
                  log.precip+ BorealV, data=ghg)
+
+summary(mod.full)
+
 #check assumptions
 res.full <- rstandard(mod.full)
 fit.full <- fitted.values(mod.full)
@@ -68,6 +71,21 @@ full.step$model
 
 # plot AIC over time
 plot(full.step )
+
+# prediction with interval for predicting a point
+predict.lm(mod.full, data.frame(airTemp=20,log.age=log(2),
+                                mean.depth=15,log.DIP=3,
+                                log.precip=6, BorealV=0),
+           interval="prediction")
+
+# look at prediction with 95% confidence interval of the mean
+
+predict.lm(mod.full, data.frame(airTemp=20,log.age=log(2),
+                                mean.depth=15,log.DIP=3,
+                                log.precip=6, BorealV=0),
+           interval="confidence")
+
+summary(mod.full)
 
 #create improved model
 hydro_mod.full <- lm(log.ch4 ~ airTemp+
@@ -113,6 +131,8 @@ hydro_full.step$model
 
 # plot AIC over time
 plot(hydro_full.step )
+
+summary(hydro_mo)
 
 #count NAs
 sum(is.na(ghg$chlorophyll.a))
@@ -233,9 +253,12 @@ ggplot() +
 
 #Question 1 -- CO2 Data
 #transform the CO2 data
-ghg$trans.co2 = 1/(ghg$co2+1000)
-plot(ghg$trans.co2)
+ghg$trans.co2 <- 1 / (ghg$co2 + 1000)
+sum(!is.na(ghg$co2))
+summary(ghg$co2)
+
 names(ghg)
+
 #check NA values
 sum(is.na(ghg$mean.depth))
 sum(is.na(ghg$surface.area))
@@ -243,20 +266,28 @@ sum(is.na(ghg$Residence.Time..days.))
 sum(is.na(ghg$age))
 sum(is.na(ghg$TropicalV))
 
-#add runoff, residence time, and mean depth as variables
+
+#add mean depth as variables
 ghg$log.runoff <- log(ghg$runoff+1)
 ghg$log.age <- log(ghg$age)
 ghg$log.DIP <- log(ghg$DIP+1)
 ghg$log.precip <- log(ghg$precipitation)
 ghg$log.surfArea <- log(ghg$surface.area)
+ghg$log.meandepth <- log(ghg$mean.depth)
 
 
-CO2mod.full <- lm(trans.co2 ~ airTemp+
-                 log.age+mean.depth+
+CO2mod.full <- lm(trans.co2 ~ log.precip +
+                 log.age+ log.meandepth +
                  log.DIP+
-                 log.precip+Residence.Time..days. + BorealV + log.runoff, data=ghg)
-
+                 BorealV, data=ghg)
+CO2mod.full
 summary(CO2mod.full)
+summary(CO2mod.full)$adj.r.squared
+
+table_out2 <- summary(CO2mod.full)$coefficients
+table_out2
+write.csv(table_out2, "/cloud/project/co2_mod.csv", row.names = TRUE)
+
 CO2res.full <- rstandard(CO2mod.full)
 CO2fit.full <- fitted.values(CO2mod.full)
 
@@ -274,11 +305,9 @@ abline(h=0)
 #Multicollinearity
 # isolate continuous model variables into data frame:
 
-C02reg.data <- data.frame(ghg$airTemp,
-                       ghg$log.age,ghg$mean.depth,
-                       ghg$log.DIP,
-                       ghg$log.precip,
-                       ghg$log.surfArea,ghg$log.runoff)
+C02reg.data <- data.frame(ghg$log.precip, ghg$log.age, ghg$log.meandepth,
+                          ghg$log.DIP, ghg$BorealV)
+        
 
 chart.Correlation(C02reg.data, histogram=TRUE, pch=19)
 
@@ -298,6 +327,7 @@ plot(C02full.step)
 
 # Homework Question 3
 unique(ETdat$crop)
+
 # average fields for each month for pistachios
 pistachios <- ETdat %>% # ET data
   filter(crop == "Pistachios") %>% # only use almond fields
@@ -311,13 +341,13 @@ ggplot(pistachios, aes(x=ymd(date),y=ET.in))+
   labs(x="year", y="Monthy evapotranspiration (in)")
 
 #Pistachios ET time series
-pistachios_ts <- ts(pistachios$ET.in, # data
-                start = c(2016,1), #start year 2016, month 1
-                #first number is unit of time and second is observations within a unit
-                frequency= 12) # frequency of observations in a unit
+pistachios_ts <- ts(pistachios$ET.in, 
+                start = c(2016,1), 
+                frequency= 12) 
 
 # decompose Pistachios ET time series
 pistachios_dec <- decompose(pistachios_ts)
+
 # plot decomposition
 plot(pistachios_dec)
 
@@ -346,6 +376,7 @@ Fallow_IdleTS <- ts(Fallow_Idle$ET.in, # data
 # decompose Fallow/Idle Cropland time series
 Fallow_Idle_dec <- decompose(Fallow_IdleTS)
 # plot decomposition
+
 plot(Fallow_Idle_dec)
 
 
@@ -404,13 +435,14 @@ plot(Grapes_dec)
 #Pistachio
 pacf.plot2 <- pacf(na.omit(pistachios_ts))
 pistachios_y <- na.omit(pistachios_ts)
+
 #look at diffrent orders/lags 
-Pmodel1 <- arima(pistachios_y, # data 
-                order = c(1,0,0)) # first number is AR order all other numbers get a 0 to keep AR format
+Pmodel1 <- arima(pistachios_y,  
+                order = c(1,0,0)) 
 Pmodel1
 
-Pmodel4 <- arima(pistachios_y, # data 
-                order = c(4,0,0)) # first number is AR order all other numbers get a 0 to keep AR format
+Pmodel4 <- arima(pistachios_y,  
+                order = c(4,0,0))
 Pmodel4
 
 Pmodel5 <- arima(pistachios_y, # data 
@@ -421,11 +453,11 @@ Pmodel5
 #calculate fit
 AR_fitP1 <- pistachios_y - residuals(Pmodel1) 
 AR_fitP4 <-  pistachios_y - residuals(Pmodel4)
-AR_fitP5 <-  pistachios_y - residuals(Pmodel5)
+
 
 AR_fitP1
 AR_fitP4
-AR_fitP5
+
 
 #plot data
 plot(pistachios_y)
@@ -440,7 +472,7 @@ legend("topleft", c("data","PR1","PR4"),
        bty="n")
 
 #forecast
-newPistachio <- forecast(Pmodel5)
+newPistachio <- forecast(Pmodel4)
 newPistachio
 
 #make dataframe for plotting
@@ -469,7 +501,7 @@ pacf.plot3 <- pacf(na.omit(Fallow_IdleTS))
 
 Fallow_Idle_y <- na.omit(Fallow_IdleTS)
 FImodel1 <- arima(Fallow_Idle_y , # data 
-                order = c(1,0,0)) # first number is AR order all other numbers get a 0 to keep AR format
+                order = c(1,0,0))
 FImodel1
 
 FImodel4 <- arima(Fallow_Idle_y,  
